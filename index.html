@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EC・pH・CO₂ 測定マネージャー</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border-color: #334155;
+            --ec-color: #22c55e;
+            --ph-color: #f8fafc;
+            --co2-color: #f59e0b;
+            --success-color: #16a34a;
+            --danger-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            height: 100vh;
+            height: 100dvh;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            height: 48px;
+            flex-shrink: 0;
+            z-index: 200;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 6px;
+            width: 100%;
+            justify-content: space-around;
+        }
+
+        .nav-btn {
+            background: #334155;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+        }
+        .nav-btn.active {
+            background: #2563eb;
+        }
+
+        .view-container {
+            flex: 1;
+            display: flex;
+            width: 300vw;
+            height: calc(100dvh - 48px);
+            transition: transform 0.25s ease-out;
+            position: relative;
+            z-index: 10;
+        }
+
+        .view-pane {
+            width: 100vw;
+            height: 100%;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
+            padding-bottom: 120px;
+        }
+
+        .section-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 4px;
+        }
+
+        .compact-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .input-group label {
+            font-size: 0.7rem;
+            color: var(--text-sub);
+        }
+
+        input[type="text"], input[type="number"] {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 1.05rem;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .row-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .time-display {
+            font-size: 1rem;
+            font-weight: 900;
+            color: #38bdf8;
+            text-align: center;
+            background: rgba(0,0,0,0.4);
+            padding: 8px 4px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-action {
+            padding: 8px 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-start { background: #334155; color: white; }
+        .btn-reset-timer { background: #64748b; color: white; font-size: 0.7rem; }
+        .btn-reset { background: #475569; color: white; font-size: 0.75rem; padding: 4px 8px; }
+
+        .btn-confirm-ec { background: var(--ec-color); color: #0f172a; font-weight: 900; font-size: 0.95rem; padding: 10px; }
+        .btn-confirm-ph { background: var(--ph-color); color: #0f172a; font-weight: 900; font-size: 0.95rem; padding: 10px; }
+        .btn-confirm-co2 { background: var(--co2-color); color: #0f172a; font-weight: 900; font-size: 0.95rem; padding: 10px; }
+
+        .table-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--card-bg);
+            max-height: 35vh;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap;
+            font-size: 0.75rem;
+        }
+
+        th, td {
+            padding: 8px 6px;
+            border-bottom: 1px solid var(--border-color);
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 110px;
+        }
+
+        th {
+            background: #0f172a;
+            color: var(--text-sub);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 16px;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            width: 100%;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="nav-buttons">
+            <button class="nav-btn active" onclick="switchView(0)">測定</button>
+            <button class="nav-btn" onclick="switchView(1)">履歴</button>
+            <button class="nav-btn" onclick="switchView(2)">集計</button>
+        </div>
+    </header>
+
+    <div class="view-container" id="viewContainer">
+        <!-- 1. 測定画面 -->
+        <div class="view-pane" id="paneMeasure">
+            
+            <!-- EC セクション -->
+            <div class="section-card">
+                <div class="section-title" style="color: var(--ec-color);">
+                    <span>EC 測定</span>
+                    <button class="btn-reset" onclick="resetSection('ec')">リセット</button>
+                </div>
+                <div class="compact-grid">
+                    <div class="input-group">
+                        <label>サンプル名</label>
+                        <input type="text" id="ecName" placeholder="サンプル名">
+                    </div>
+                    <div class="input-group">
+                        <label>初期値 (1225)</label>
+                        <input type="text" id="ecInitial" inputmode="numeric" placeholder="1225" onblur="formatDecimal('ecInitial', 2)">
+                    </div>
+                    <div class="input-group">
+                        <label>確定値</label>
+                        <input type="text" id="ecFinal" inputmode="numeric" placeholder="確定値" onblur="formatDecimal('ecFinal', 2)">
+                    </div>
+                </div>
+                <div class="row-actions" style="margin-top: 4px;">
+                    <div class="input-group">
+                        <label>水温 (254)</label>
+                        <input type="text" id="ecTemp" inputmode="numeric" placeholder="254" onblur="formatDecimal('ecTemp', 1)">
+                    </div>
+                    <div class="time-display" id="ecTimerDisplay">0秒</div>
+                    <button class="btn-action btn-start" id="ecTimerBtn" onclick="toggleTimer('ec')">計測</button>
+                    <button class="btn-action btn-reset-timer" onclick="resetTimer('ec')">リセット</button>
+                </div>
+                <button class="btn-action btn-confirm-ec" onclick="confirmSection('ec')" style="margin-top: 4px;">EC 確定・保存</button>
+            </div>
+
+            <!-- pH セクション -->
+            <div class="section-card">
+                <div class="section-title" style="color: var(--ph-color);">
+                    <span>pH 測定</span>
+                    <button class="btn-reset" onclick="resetSection('ph')">リセット</button>
+                </div>
+                <div class="compact-grid">
+                    <div class="input-group">
+                        <label>サンプル名</label>
+                        <input type="text" id="phName" placeholder="サンプル名">
+                    </div>
+                    <div class="input-group">
+                        <label>初期値 (702)</label>
+                        <input type="text" id="phInitial" inputmode="numeric" placeholder="702" onblur="formatDecimal('phInitial', 2, 1)">
+                    </div>
+                    <div class="input-group">
+                        <label>確定値</label>
+                        <input type="text" id="phFinal" inputmode="numeric" placeholder="確定値" onblur="formatDecimal('phFinal', 2, 1)">
+                    </div>
+                </div>
+                <div class="row-actions" style="margin-top: 4px;">
+                    <div class="input-group">
+                        <label>水温 (254)</label>
+                        <input type="text" id="phTemp" inputmode="numeric" placeholder="254" onblur="formatDecimal('phTemp', 1)">
+                    </div>
+                    <div class="time-display" id="phTimerDisplay">0秒</div>
+                    <button class="btn-action btn-start" id="phTimerBtn" onclick="toggleTimer('ph')">計測</button>
+                    <button class="btn-action btn-reset-timer" onclick="resetTimer('ph')">リセット</button>
+                </div>
+                <button class="btn-action btn-confirm-ph" onclick="confirmSection('ph')" style="margin-top: 4px;">pH 確定・保存</button>
+            </div>
+
+            <!-- CO2 セクション -->
+            <div class="section-card">
+                <div class="section-title" style="color: var(--co2-color);">
+                    <span>CO₂ 測定 (mg/L)</span>
+                    <button class="btn-reset" onclick="resetSection('co2')">リセット</button>
+                </div>
+                <div class="compact-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="input-group">
+                        <label>サンプル名</label>
+                        <input type="text" id="co2Name" placeholder="サンプル名">
+                    </div>
+                    <div class="input-group">
+                        <label>安定確定値 (mg/L)</label>
+                        <input type="text" id="co2Final" inputmode="numeric" placeholder="例: 450">
+                    </div>
+                </div>
+                <div class="row-actions" style="margin-top: 4px; grid-template-columns: 1fr 1fr auto;">
+                    <div class="time-display" id="co2TimerDisplay">0秒</div>
+                    <button class="btn-action btn-start" id="co2TimerBtn" onclick="toggleTimer('co2')">計測スタート</button>
+                    <button class="btn-action btn-reset-timer" onclick="resetTimer('co2')">リセット</button>
+                </div>
+                <button class="btn-action btn-confirm-co2" onclick="confirmSection('co2')" style="margin-top: 4px;">CO₂ 確定・保存</button>
+            </div>
+
+        </div>
+
+        <!-- 2. 履歴画面 -->
+        <div class="view-pane" id="paneHistory">
+            <h2 style="font-size: 0.85rem;">当日データ</h2>
+            <div class="table-wrapper">
+                <table id="todayTable">
+                    <thead>
+                        <tr><th>時刻</th><th>項目</th><th>サンプル</th><th>確定値</th><th>水温</th><th>時間</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; gap: 4px; margin: 4px 0;">
+                <select id="sortField" style="background:#0f172a; color:white; border:1px solid var(--border-color); padding:4px; border-radius:4px; font-size:0.75rem; flex:1;" onchange="renderHistory()">
+                    <option value="confirmedAt">日時順</option>
+                    <option value="sampleName">サンプル名順</option>
+                    <option value="category">項目順</option>
+                </select>
+                <button class="nav-btn" onclick="toggleSortOrder()" id="sortOrderBtn" style="font-size:0.75rem; flex:0 0 90px;">降順 ▼</button>
+            </div>
+
+            <h2 style="font-size: 0.85rem;">過去データ (アーカイブ)</h2>
+            <div class="table-wrapper">
+                <table id="archiveTable">
+                    <thead>
+                        <tr><th>確定日時</th><th>項目</th><th>サンプル</th><th>値</th><th>水温</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. 集計画面 (確定値＆水温表示対応) -->
+        <div class="view-pane" id="paneSummary">
+            <h2 style="font-size: 0.85rem;">サンプル別 測定値一覧</h2>
+            <div class="table-wrapper">
+                <table id="summaryTable">
+                    <thead>
+                        <tr><th>日付</th><th>サンプル名</th><th>EC (水温/確定)</th><th>pH (水温/確定)</th><th>CO₂</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル -->
+    <div class="modal-overlay" id="detailModal" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3 style="font-size: 0.9rem; border-bottom: 1px solid var(--border-color); padding-bottom: 4px;">詳細情報</h3>
+            <div id="modalBody" style="font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; color: var(--text-sub);"></div>
+            <button class="nav-btn" style="background: #2563eb; margin-top: 4px;" onclick="closeModal()">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        let records = [];
+        try {
+            records = JSON.parse(localStorage.getItem('measure_records_v8') || '[]');
+        } catch (e) {
+            records = [];
+        }
+
+        let timers = {
+            ec: { startTime: null, elapsed: 0, timerId: null, running: false },
+            ph: { startTime: null, elapsed: 0, timerId: null, running: false },
+            co2: { startTime: null, elapsed: 0, timerId: null, running: false }
+        };
+        let currentViewIndex = 0;
+        let sortAscending = false;
+
+        function cleanOldRecords() {
+            const now = Date.now();
+            records = records.filter(r => (now - r.confirmedAt) <= 60 * 24 * 60 * 60 * 1000);
+            localStorage.setItem('measure_records_v8', JSON.stringify(records));
+        }
+        cleanOldRecords();
+
+        function formatDecimal(elemId, decimalPlaces, integerDigitsConstraint = null) {
+            const input = document.getElementById(elemId);
+            let val = input.value.trim();
+            if (!val || val.includes('.')) return;
+            let numStr = val.replace(/\D/g, '');
+            if (!numStr) return;
+
+            if (integerDigitsConstraint !== null) {
+                if (numStr.length <= integerDigitsConstraint) numStr = numStr.padStart(integerDigitsConstraint + decimalPlaces, '0');
+                input.value = `${numStr.slice(0, integerDigitsConstraint)}.${numStr.slice(integerDigitsConstraint, integerDigitsConstraint + decimalPlaces)}`;
+            } else {
+                if (decimalPlaces === 2 && numStr.length <= 2) numStr = numStr.padStart(4, '0');
+                else if (decimalPlaces === 1 && numStr.length <= 1) numStr = numStr.padStart(2, '0');
+                const splitIdx = numStr.length - decimalPlaces;
+                input.value = splitIdx <= 0 ? `0.${numStr.padStart(decimalPlaces, '0')}` : `${numStr.slice(0, splitIdx)}.${numStr.slice(splitIdx)}`;
+            }
+        }
+
+        function toggleTimer(category) {
+            const t = timers[category];
+            const btn = document.getElementById(`${category}TimerBtn`);
+            if (!t.running) {
+                t.running = true;
+                t.startTime = Date.now() - t.elapsed;
+                btn.innerText = "停止";
+                btn.style.background = "var(--danger-color)";
+                t.timerId = setInterval(() => {
+                    t.elapsed = Date.now() - t.startTime;
+                    document.getElementById(`${category}TimerDisplay`).innerText = `${Math.floor(t.elapsed / 1000)}秒`;
+                }, 1000);
+            } else {
+                t.running = false;
+                clearInterval(t.timerId);
+                btn.innerText = "再開";
+                btn.style.background = "var(--success-color)";
+            }
+        }
+
+        function resetTimer(category) {
+            clearInterval(timers[category].timerId);
+            timers[category] = { startTime: null, elapsed: 0, timerId: null, running: false };
+            document.getElementById(`${category}TimerDisplay`).innerText = `0秒`;
+            const btn = document.getElementById(`${category}TimerBtn`);
+            btn.innerText = "計測";
+            btn.style.background = "#334155";
+        }
+
+        function resetSection(category) {
+            if(!confirm('リセットしますか？')) return;
+            document.getElementById(`${category}Name`).value = '';
+            if(category !== 'co2') {
+                document.getElementById(`${category}Initial`).value = '';
+                document.getElementById(`${category}Temp`).value = '';
+            }
+            document.getElementById(`${category}Final`).value = '';
+            resetTimer(category);
+        }
+
+        function confirmSection(category) {
+            const sampleName = document.getElementById(`${category}Name`).value.trim();
+            if (!sampleName) { alert('サンプル名を入力してください。'); return; }
+            const finalVal = document.getElementById(`${category}Final`).value.trim();
+            if (!finalVal) { alert('確定値を入力してください。'); return; }
+
+            records.push({
+                id: 'REC_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                category: category.toUpperCase(),
+                sampleName: sampleName,
+                initial: category !== 'co2' ? document.getElementById(`${category}Initial`).value.trim() : '',
+                final: finalVal,
+                temp: category !== 'co2' ? document.getElementById(`${category}Temp`).value.trim() : '',
+                duration: Math.floor(timers[category].elapsed / 1000),
+                dateStr: new Date().toLocaleDateString(),
+                confirmedAt: Date.now(),
+                archived: false
+            });
+            localStorage.setItem('measure_records_v8', JSON.stringify(records));
+            alert(`${category.toUpperCase()} のデータを保存しました。`);
+            resetSection(category);
+            renderHistory();
+            renderSummary();
+        }
+
+        function switchView(index) {
+            currentViewIndex = index;
+            document.getElementById('viewContainer').style.transform = `translateX(-${index * 100}vw)`;
+            document.querySelectorAll('.nav-btn').forEach((b, i) => b.classList.toggle('active', i === index));
+            if(index === 1) renderHistory();
+            if(index === 2) renderSummary();
+        }
+
+        let touchStartX = 0;
+        const container = document.getElementById('viewContainer');
+        container.addEventListener('touchstart', e => touchStartX = e.changedTouches[0].clientX);
+        container.addEventListener('touchend', e => {
+            const diff = e.changedTouches[0].clientX - touchStartX;
+            if (Math.abs(diff) > 50) {
+                if (diff < 0 && currentViewIndex < 2) switchView(currentViewIndex + 1);
+                if (diff > 0 && currentViewIndex > 0) switchView(currentViewIndex - 1);
+            }
+        });
+
+        function renderHistory() {
+            const todayStr = new Date().toLocaleDateString();
+            document.querySelector('#todayTable tbody').innerHTML = records.filter(r => r.dateStr === todayStr).map(r => `
+                <tr onclick='showDetail(${JSON.stringify(r)})'>
+                    <td>${new Date(r.confirmedAt).toLocaleTimeString()}</td>
+                    <td>${r.category}</td>
+                    <td>${r.sampleName}</td>
+                    <td>${r.initial ? r.initial+'/'+r.final : r.final}</td>
+                    <td>${r.temp ? r.temp+'℃' : '-'}</td>
+                    <td>${r.duration}秒</td>
+                </tr>
+            `).join('') || `<tr><td colspan="6" style="text-align:center; color:var(--text-sub);">データなし</td></tr>`;
+
+            let archive = records.filter(r => r.dateStr !== todayStr || r.archived);
+            const sf = document.getElementById('sortField').value;
+            archive.sort((a,b) => (a[sf] < b[sf] ? (sortAscending?-1:1) : (a[sf] > b[sf] ? (sortAscending?1:-1) : 0)));
+            document.querySelector('#archiveTable tbody').innerHTML = archive.map(r => `
+                <tr onclick='showDetail(${JSON.stringify(r)})'>
+                    <td>${new Date(r.confirmedAt).toLocaleString()}</td>
+                    <td>${r.category}</td>
+                    <td>${r.sampleName}</td>
+                    <td>${r.final}</td>
+                    <td>${r.temp ? r.temp+'℃' : '-'}</td>
+                </tr>
+            `).join('') || `<tr><td colspan="5" style="text-align:center; color:var(--text-sub);">過去データなし</td></tr>`;
+        }
+
+        function toggleSortOrder() {
+            sortAscending = !sortAscending;
+            document.getElementById('sortOrderBtn').innerText = sortAscending ? '昇順 ▲' : '降順 ▼';
+            renderHistory();
+        }
+
+        // 集計画面：水温と確定値を各項目ごとに一覧表示
+        function renderSummary() {
+            const map = {};
+            records.forEach(r => {
+                const k = r.dateStr + '_' + r.sampleName;
+                if(!map[k]) map[k] = { date: r.dateStr, name: r.sampleName, EC: null, PH: null, CO2: null };
+                const cat = (r.category || '').toUpperCase();
+                if (cat === 'EC') map[k].EC = r;
+                if (cat === 'PH' || cat === 'P_H') map[k].PH = r;
+                if (cat === 'CO2') map[k].CO2 = r;
+            });
+
+            document.querySelector('#summaryTable tbody').innerHTML = Object.values(map).map(i => {
+                const fmt = (item) => {
+                    if (!item) return '<span style="color:var(--danger-color);">未</span>';
+                    const tempStr = item.temp ? `${item.temp}℃` : '-';
+                    return `${tempStr} / <b>${item.final}</b>`;
+                };
+                const fmtCo2 = (item) => {
+                    if (!item) return '<span style="color:var(--danger-color);">未</span>';
+                    return `<b>${item.final} mg/L</b>`;
+                };
+
+                return `
+                    <tr>
+                        <td>${i.date}</td>
+                        <td>${i.name}</td>
+                        <td>${fmt(i.EC)}</td>
+                        <td>${fmt(i.PH)}</td>
+                        <td>${fmtCo2(i.CO2)}</td>
+                    </tr>
+                `;
+            }).join('') || `<tr><td colspan="5" style="text-align:center; color:var(--text-sub);">データなし</td></tr>`;
+        }
+
+        function showDetail(r) {
+            document.getElementById('modalBody').innerHTML = `
+                <div><strong>日時:</strong> ${new Date(r.confirmedAt).toLocaleString()}</div>
+                <div><strong>項目:</strong> ${r.category}</div>
+                <div><strong>サンプル:</strong> ${r.sampleName}</div>
+                <div><strong>初期値:</strong> ${r.initial||'-'}</div>
+                <div><strong>確定値:</strong> ${r.final}</div>
+                <div><strong>水温:</strong> ${r.temp?r.temp+'℃':'-'}</div>
+                <div><strong>時間:</strong> ${r.duration}秒</div>
+            `;
+            document.getElementById('detailModal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('detailModal').style.display = 'none'; }
+    </script>
+</body>
+</html>
